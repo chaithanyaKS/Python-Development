@@ -1,20 +1,47 @@
 import pathlib
 import json
 import os
+from typing import cast
+BASE_FILE_PATH = pathlib.Path.cwd()
+STORE_FILE_PATH = BASE_FILE_PATH / 'store' / 'store.json'
+STORE_INDEX_PATH = BASE_FILE_PATH / 'store' / 'keys.txt'
 
 
 class LocalSore:
 
-    def __init__(self, store_file_path='./store/store.json', store_index_path='./store/index.txt'):
-        self.store_file_path = store_file_path
-        self.store_index_path = store_index_path
+    def __init__(self, store_file_path=STORE_FILE_PATH, store_index_path=STORE_INDEX_PATH):
+        self.store_file_path = pathlib.Path(store_file_path)
+        self.store_index_path = pathlib.Path(store_index_path)
+        self.check_or_create_files()
         self.keys = self.get_keys()
+
+    def check_or_create_files(self):
+        if not self.store_file_path.parent.exists():
+            os.makedirs(self.store_file_path.parent)
+
+        if not self.store_index_path.parent.exists():
+            os.makedirs(self.store_index_path.parent)
+
+        if not self.store_file_path.exists():
+            with open(self.store_file_path, 'w'):
+                pass
+            print(
+                f'Created Store at {self.store_file_path.absolute()}')
+
+        if not self.store_index_path.exists():
+            with open(self.store_index_path, 'w'):
+                pass
+            print(
+                f'Created Index File at {self.store_index_path.absolute()}')
 
     def get_keys(self):
         with open(self.store_index_path) as fp:
-            return fp.readline().split(',')
+            keys = fp.readline().split(',')
+            return keys if keys[0] != '' else None
 
     def check_key(self, key):
+        if self.keys == None:
+            return False
         return True if key in self.keys else False
 
     def get_store(self):
@@ -30,9 +57,15 @@ class LocalSore:
             if self.check_key(key):
                 raise Exception('Key already exists')
 
-            self.keys.append(key)
+            separator = ',' if self.keys is not None else ''
+
             with open(self.store_index_path, 'a') as fp:
-                fp.write(f',{key}')
+                fp.write(f'{separator}{key}')
+
+            if self.keys == None:
+                self.keys == [key]
+            else:
+                self.keys.append(key)
 
     def update_store(self, store):
         with open(self.store_file_path, 'w') as fp:
@@ -53,8 +86,11 @@ class LocalSore:
         if self.check_key(key):
             raise Exception('Key Already Exists')
         else:
-            store = self.get_store()
-            store[key] = data
+            try:
+                store = self.get_store()
+                store[key] = data
+            except:
+                store = {key: data}
             self.update_store(store)
             self.update_keys(key)
             print('Data Stored Successfully', end='\n\n')
@@ -76,5 +112,5 @@ class LocalSore:
         print('Data Deleted Successfully')
 
 
-store = LocalSore()
-store.print_store()
+store = LocalSore('stores/store.json', 'stores/keys.txt')
+store.write("3", 'asdsa')
