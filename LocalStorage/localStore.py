@@ -23,7 +23,7 @@ class LocalSore:
         """
         self.store_file_path = pathlib.Path(store_file_path)
         self.__BASE_PATH = self.store_file_path.parent
-        self.store_keys_path = self.__BASE_PATH / 'keys.txt'
+        self.store_keys_path = self.__BASE_PATH / 'keys.json'
         self.__check_or_create_files()
         self.keys = self.__get_keys()
 
@@ -34,16 +34,14 @@ class LocalSore:
             os.makedirs(self.__BASE_PATH)
 
         if not self.store_file_path.exists():
-            with open(self.store_file_path, 'w'):
-                pass
+            with open(self.store_file_path, 'w') as fp:
+                json.dump({}, fp)
             print(
                 f'Created Store at {self.store_file_path.absolute()}')
 
         if not self.store_keys_path.exists():
-            with open(self.store_keys_path, 'w'):
-                pass
-            print(
-                f'Created Index File at {self.store_keys_path.absolute()}')
+            with open(self.store_keys_path, 'w') as fp:
+                json.dump([], fp)
 
     def __get_keys(self):
         """Function to retrive the keys from the keys.txt
@@ -53,8 +51,9 @@ class LocalSore:
             keys : keys of the local storage
         """
         with open(self.store_keys_path) as fp:
-            keys = fp.readline().split(',')
-            return keys if keys[0] != '' else []
+            keys = json.load(fp)
+            # print(keys)
+            return keys
 
     def __check_key(self, key):
         """Function to check if the key is already in use
@@ -94,16 +93,15 @@ class LocalSore:
 
         if op == 'del':
             self.keys.remove(key)
-            with open(self.store_keys_path, 'w') as fp:
-                fp.write(','.join(self.keys).lstrip(','))
+            # with open(self.store_keys_path, 'w') as fp:
+            #     json.dump(self.keys, fp)
         else:
             if self.__check_key(key):
                 raise Exception('Key already exists')
-
             self.keys.append(key)
 
-            with open(self.store_keys_path, 'w') as fp:
-                fp.write(','.join(self.keys))
+        with open(self.store_keys_path, 'w') as fp:
+            json.dump(self.keys, fp)
 
     def __update_store(self, store):
         """Function to update the store entries
@@ -144,9 +142,9 @@ class LocalSore:
         else:
             try:
                 store = self.__get_store()
-                store[key] = data
+                store[key] = {"data": data}
             except:
-                store = {key: data}
+                store = {key: {"data": data}}
             self.__update_store(store)
             self.__update_keys(key)
             print('Data Stored Successfully', end='\n\n')
@@ -187,7 +185,6 @@ class LocalSore:
             del store[key]
             self.__update_store(store)
             self.__update_keys(key, op='del')
-            print(self.keys)
             print('Data Deleted Successfully')
 
         except Exception as e:
@@ -195,3 +192,6 @@ class LocalSore:
 
 
 store = LocalSore('stores/store.json')
+store.write('key2', 'datafasdf')
+print(store.read('key1'))
+store.delete('key1')
