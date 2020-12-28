@@ -27,6 +27,10 @@ class LocalSore:
         self.__check_or_create_files()
         self.keys = self.__get_keys()
 
+    @property
+    def file_path(self):
+        return self.store_file_path
+
     def __check_or_create_files(self):
         """Function to check if the store is created or not
         """
@@ -93,8 +97,6 @@ class LocalSore:
 
         if op == 'del':
             self.keys.remove(key)
-            # with open(self.store_keys_path, 'w') as fp:
-            #     json.dump(self.keys, fp)
         else:
             if self.__check_key(key):
                 raise Exception('Key already exists')
@@ -190,8 +192,14 @@ class LocalSore:
         except Exception as e:
             print(e)
 
+    def delete_store(self):
+        os.remove(self.store_file_path)
+        os.remove(self.store_keys_path)
+        if not os.path.samefile(pathlib.Path.cwd(), self.store_file_path.parent.absolute()):
+            os.removedirs(self.store_file_path.parent.absolute())
+        print('Store Deleted Successfully')
 
-store = LocalSore('stores/store.json')
-store.write('key2', 'datafasdf')
-print(store.read('key1'))
-store.delete('key1')
+
+if __name__ == "__main__":
+    store = LocalSore('abc/store.json')
+    print(store.file_path)
