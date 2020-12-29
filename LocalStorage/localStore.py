@@ -1,6 +1,8 @@
 import pathlib
 import json
 import os
+import jsonlines
+import fileinput
 
 
 class EmptyStoreException(Exception):
@@ -9,11 +11,12 @@ class EmptyStoreException(Exception):
 
 
 class LocalSore:
-    """Class to careate a Key Value based Storage System
+    """Class to create a Key Value based Storage System
 
     """
     __BASE_FILE_PATH = pathlib.Path.cwd()
-    __STORE_FILE_PATH = __BASE_FILE_PATH / 'store' / 'store.json'
+    __STORE_FILE_PATH = __BASE_FILE_PATH / 'store' / 'store.ndjson'
+    __KEY_DESCRIPTOR = '&^@#'
 
     def __init__(self, store_file_path=__STORE_FILE_PATH):
         """Constructor to initialize the Local Storage
@@ -38,8 +41,8 @@ class LocalSore:
             os.makedirs(self.__BASE_PATH)
 
         if not self.store_file_path.exists():
-            with open(self.store_file_path, 'w') as fp:
-                json.dump({}, fp)
+            with open(self.store_file_path, 'w'):
+                pass
             print(
                 f'Created Store at {self.store_file_path.absolute()}')
 
@@ -48,7 +51,7 @@ class LocalSore:
                 json.dump([], fp)
 
     def __get_keys(self):
-        """Function to retrive the keys from the keys.txt
+        """Function to retrieve the keys from the keys.txt
             if the keys.txt file is empty list is returned        
 
         Returns:
@@ -56,10 +59,10 @@ class LocalSore:
         """
         with open(self.store_keys_path) as fp:
             keys = json.load(fp)
-            # print(keys)
             return keys
 
     def __check_key(self, key):
+
         """Function to check if the key is already in use
 
         Args:
@@ -70,8 +73,11 @@ class LocalSore:
         """
         return True if key in self.keys else False
 
+    def __generate_store_key(self, key):
+        return f'{key}{self.__KEY_DESCRIPTOR}'
+
     def __get_store(self):
-        """Function to retrive the local storage
+        """Function to retrieve the local storage
 
         Raises:
             EmptyStore: When the store is empty
@@ -79,7 +85,7 @@ class LocalSore:
         Returns:
             store: returns the contents of the store
         """
-        if self.keys == []:
+        if not self.keys:
             raise EmptyStoreException('No Data is present in Store')
         with open(self.store_file_path, 'r') as fp:
             return json.load(fp)
@@ -105,31 +111,47 @@ class LocalSore:
         with open(self.store_keys_path, 'w') as fp:
             json.dump(self.keys, fp)
 
-    def __update_store(self, store):
+    def __update_store(self, key=None, data=None, op='add'):
         """Function to update the store entries
 
         Args:
-            store (dict(str,str)): new store
+            key (str): key of the record
+            data (dict(str,str)): new record
+            op (Enum('add', 'del')): operation to update the store
+
+        Raises:
+            KeyErrorException: If the key is None during delete operation
         """
-        with open(self.store_file_path, 'w') as fp:
-            json.dump(store, fp)
+        if op == 'add':
+            with jsonlines.open(self.store_file_path, mode='a') as fp:
+                fp.write(data)
+        elif op == 'del':
+            if key is None:
+                raise KeyError('Key not provided')
+            with fileinput.FileInput(self.store_file_path, inplace=True, backup='.bak', mode='r') as fp:
+                for line in fp:
+                    if key in line:
+                        print('', end='')
+                    else:
+                        print(line, end='')
 
     def print_store(self):
         """Function to print the contents of the store.
         """
-        store = self.__get_store()
-        if self.keys == None:
-            print('No data is present in the store')
-        else:
-            print('='*50)
-            print('key        data')
-            print('='*50)
-            print()
-            for key, data in store.items():
-                print(f'{key}    :    {data}', end='\n\n')
-            print('='*50)
+        spacer = ' ' * 18
+        print('=' * 50)
+        print(f'  key{spacer}data')
+        print('=' * 50)
+        print()
 
-    def write(self, key,  data):
+        with jsonlines.open(self.store_file_path) as fp:
+            for line in fp.iter():
+                key, data = list(line.items()).pop()
+                print(f'{key}    :    {data}', end='\n\n')
+
+        print('=' * 50, end='\r')
+
+    def write(self, key, data):
         """Function to write the contents to the store
 
         Args:
@@ -139,17 +161,18 @@ class LocalSore:
         Raises:
             KeyError: Key already exists
         """
-        if self.__check_key(key):
+        if not self.__check_file_size():
+            raise Exception('Store Size exceeded')
+
+        # if type(key) != '':
+        #     raise TypeError("Key is not a string")
+        new_key = self.__generate_store_key(key)
+        if self.__check_key(new_key):
             raise KeyError('Key Already Exists')
-        else:
-            try:
-                store = self.__get_store()
-                store[key] = {"data": data}
-            except:
-                store = {key: {"data": data}}
-            self.__update_store(store)
-            self.__update_keys(key)
-            print('Data Stored Successfully', end='\n\n')
+        new_data = {new_key: {"data": data}}
+        self.__update_store(data=new_data)
+        self.__update_keys(new_key)
+        print('Data Stored Successfully', end='\n\n')
 
     def read(self, key):
         """Function to read the contents of the store based on a given key
@@ -163,13 +186,13 @@ class LocalSore:
         Returns:
             entry: contents stored with the key
         """
+        key = self.__generate_store_key(key)
         if not self.__check_key(key):
             raise KeyError('Key Not Found')
-        try:
-            store = self.__get_store()
-            return store[key]
-        except Exception as e:
-            print(e)
+        for line in fileinput.input(self.store_file_path):
+            if key in line:
+                val = json.loads(line)
+                return val[key]
 
     def delete(self, key):
         """Function to delete an entry based on a key
@@ -180,17 +203,11 @@ class LocalSore:
         Raises:
             KeyError: If key is not present
         """
-        if not self.__check_key(key):
+        record_key = self.__generate_store_key(key)
+        if not self.__check_key(record_key):
             raise KeyError('Key Not Found')
-        try:
-            store = self.__get_store()
-            del store[key]
-            self.__update_store(store)
-            self.__update_keys(key, op='del')
-            print('Data Deleted Successfully')
-
-        except Exception as e:
-            print(e)
+        self.__update_store(key=record_key, op='del')
+        self.__update_keys(record_key, op='del')
 
     def delete_store(self):
         os.remove(self.store_file_path)
@@ -199,7 +216,16 @@ class LocalSore:
             os.removedirs(self.store_file_path.parent.absolute())
         print('Store Deleted Successfully')
 
+    def __check_file_size(self):
+        return True if os.stat(self.store_file_path).st_size < 2 ** 30 else False
+
 
 if __name__ == "__main__":
-    store = LocalSore('abc/store.json')
-    print(store.file_path)
+    store = LocalSore()
+    # print(store.file_path)
+    # store.write("key3", 'dadasda3')
+    # store.write("key2", 'dadasda3')
+    # store.write("key1", 'dadasda3')
+    # print(store.read('key3'))
+    # store.delete('key3')
+    store.print_store()
