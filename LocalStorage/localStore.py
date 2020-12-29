@@ -62,7 +62,6 @@ class LocalSore:
             return keys
 
     def __check_key(self, key):
-
         """Function to check if the key is already in use
 
         Args:
@@ -147,7 +146,8 @@ class LocalSore:
         with jsonlines.open(self.store_file_path) as fp:
             for line in fp.iter():
                 key, data = list(line.items()).pop()
-                print(f'{key}    :    {data}', end='\n\n')
+                record_key = key.replace(self.__KEY_DESCRIPTOR, '')
+                print(f'{record_key}    :    {data}', end='\n\n')
 
         print('=' * 50, end='\r')
 
