@@ -65,7 +65,6 @@ class LocalSore:
             return keys
 
     def __is_valid_key(self, key: str) -> bool:
-
         """Function to check if the key is already in use
 
         Args:
@@ -153,6 +152,7 @@ class LocalSore:
             data (str): data to be stored
 
         Raises:
+            TypeError: Key is not a String type
             KeyError: Key already exists
         """
         if not self.__check_file_size():
@@ -160,7 +160,9 @@ class LocalSore:
 
         if not isinstance(key, str):
             raise TypeError("Key is not a string")
+
         new_key = self.__generate_store_key(key)
+
         if self.__is_valid_key(new_key):
             raise KeyError('Key Already Exists')
 
