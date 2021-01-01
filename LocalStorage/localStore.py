@@ -1,6 +1,9 @@
 import pathlib
 import json
 import os
+import jsonlines
+import fileinput
+from typing import Dict, Union
 
 
 class EmptyStoreException(Exception):
@@ -9,11 +12,12 @@ class EmptyStoreException(Exception):
 
 
 class LocalSore:
-    """Class to careate a Key Value based Storage System
+    """Class to create a Key Value based Storage System
 
     """
     __BASE_FILE_PATH = pathlib.Path.cwd()
-    __STORE_FILE_PATH = __BASE_FILE_PATH / 'store' / 'store.json'
+    __STORE_FILE_PATH = __BASE_FILE_PATH / 'store' / 'store.ndjson'
+    __KEY_DESCRIPTOR = '&^@#'
 
     def __init__(self, store_file_path=__STORE_FILE_PATH):
         """Constructor to initialize the Local Storage
@@ -21,45 +25,46 @@ class LocalSore:
         Args:
             store_file_path (str, optional): Path to the local storage. Defaults to __STORE_FILE_PATH.
         """
-        self.store_file_path = pathlib.Path(store_file_path)
-        self.__BASE_PATH = self.store_file_path.parent
-        self.store_keys_path = self.__BASE_PATH / 'keys.json'
+        self.__store_file_path = pathlib.Path(store_file_path)
+        self.__BASE_PATH = self.__store_file_path.parent
+        self.__store_keys_path = self.__BASE_PATH / 'keys.json'
         self.__check_or_create_files()
         self.keys = self.__get_keys()
 
     @property
-    def file_path(self):
-        return self.store_file_path
+    def file_path(self) -> str:
+        """Property returns store file path
+        """
+        return self.__store_file_path
 
-    def __check_or_create_files(self):
+    def __check_or_create_files(self) -> None:
         """Function to check if the store is created or not
         """
         if not self.__BASE_PATH.exists():
             os.makedirs(self.__BASE_PATH)
 
-        if not self.store_file_path.exists():
-            with open(self.store_file_path, 'w') as fp:
-                json.dump({}, fp)
+        if not self.__store_file_path.exists():
+            with open(self.__store_file_path, 'w'):
+                pass
             print(
-                f'Created Store at {self.store_file_path.absolute()}')
+                f'Created Store at {self.__store_file_path.absolute()}')
 
-        if not self.store_keys_path.exists():
-            with open(self.store_keys_path, 'w') as fp:
+        if not self.__store_keys_path.exists():
+            with open(self.__store_keys_path, 'w') as fp:
                 json.dump([], fp)
 
     def __get_keys(self):
-        """Function to retrive the keys from the keys.txt
+        """Function to retrieve the keys from the keys.txt
             if the keys.txt file is empty list is returned        
 
         Returns:
             keys : keys of the local storage
         """
-        with open(self.store_keys_path) as fp:
+        with open(self.__store_keys_path) as fp:
             keys = json.load(fp)
-            # print(keys)
             return keys
 
-    def __check_key(self, key):
+    def __is_valid_key(self, key: str) -> bool:
         """Function to check if the key is already in use
 
         Args:
@@ -70,21 +75,15 @@ class LocalSore:
         """
         return True if key in self.keys else False
 
-    def __get_store(self):
-        """Function to retrive the local storage
-
-        Raises:
-            EmptyStore: When the store is empty
+    def __generate_store_key(self, key: str) -> str:
+        """Function to retrieve the local storage
 
         Returns:
-            store: returns the contents of the store
+            record_key: returns the new record key
         """
-        if self.keys == []:
-            raise EmptyStoreException('No Data is present in Store')
-        with open(self.store_file_path, 'r') as fp:
-            return json.load(fp)
+        return f'{key}{self.__KEY_DESCRIPTOR}'
 
-    def __update_keys(self, key, op='add'):
+    def __update_keys(self, key: str, op: str = 'add') -> None:
         """Function to update the key entries
 
         Args:
@@ -98,38 +97,54 @@ class LocalSore:
         if op == 'del':
             self.keys.remove(key)
         else:
-            if self.__check_key(key):
+            if self.__is_valid_key(key):
                 raise Exception('Key already exists')
             self.keys.append(key)
-
-        with open(self.store_keys_path, 'w') as fp:
+        with open(self.__store_keys_path, 'w') as fp:
             json.dump(self.keys, fp)
 
-    def __update_store(self, store):
+    def __update_store(self, key: str = None, data: Dict[str, Dict[str, str]] = None, op: str = 'add') -> None:
         """Function to update the store entries
 
         Args:
-            store (dict(str,str)): new store
-        """
-        with open(self.store_file_path, 'w') as fp:
-            json.dump(store, fp)
+            key (str): key of the record
+            data (dict(str,str)): new record
+            op (Enum('add', 'del')): operation to update the store
 
-    def print_store(self):
+        Raises:
+            KeyErrorException: If the key is None during delete operation
+        """
+        if op == 'add':
+            with jsonlines.open(self.__store_file_path, mode='a') as fp:
+                fp.write(data)
+        elif op == 'del':
+            if key is None:
+                raise KeyError('Key not provided')
+            with fileinput.FileInput(self.__store_file_path, inplace=True, backup='.bak', mode='r') as fp:
+                for line in fp:
+                    if key in line:
+                        print('', end='')
+                    else:
+                        print(line, end='')
+            os.remove(f'{self.__store_file_path}.bak')
+
+    def print_store(self) -> None:
         """Function to print the contents of the store.
         """
-        store = self.__get_store()
-        if self.keys == None:
-            print('No data is present in the store')
-        else:
-            print('='*50)
-            print('key        data')
-            print('='*50)
-            print()
-            for key, data in store.items():
-                print(f'{key}    :    {data}', end='\n\n')
-            print('='*50)
+        spacer = ' ' * 18
+        print('=*=' * 13)
+        print(f'  key{spacer}data')
+        print('=*=' * 13)
+        print()
 
-    def write(self, key,  data):
+        with jsonlines.open(self.__store_file_path) as fp:
+            for line in fp.iter():
+                key, data = list(line.items()).pop()
+                print(f'{key}    :    {data}', end='\n\n')
+
+        print('=*=' * 13, end='\r')
+
+    def write(self, key: str, data: Union[str, int, float, dict, list]):
         """Function to write the contents to the store
 
         Args:
@@ -137,21 +152,26 @@ class LocalSore:
             data (str): data to be stored
 
         Raises:
+            TypeError: Key is not a String type
             KeyError: Key already exists
         """
-        if self.__check_key(key):
-            raise KeyError('Key Already Exists')
-        else:
-            try:
-                store = self.__get_store()
-                store[key] = {"data": data}
-            except:
-                store = {key: {"data": data}}
-            self.__update_store(store)
-            self.__update_keys(key)
-            print('Data Stored Successfully', end='\n\n')
+        if not self.__check_file_size():
+            raise Exception('Store Size exceeded')
 
-    def read(self, key):
+        if not isinstance(key, str):
+            raise TypeError("Key is not a string")
+
+        new_key = self.__generate_store_key(key)
+
+        if self.__is_valid_key(new_key):
+            raise KeyError('Key Already Exists')
+
+        new_data = {new_key: {'data': data}}
+        self.__update_store(data=new_data)
+        self.__update_keys(new_key)
+        print('Data Stored Successfully', end='\n\n')
+
+    def read(self, key: str) -> dict:
         """Function to read the contents of the store based on a given key
 
         Args:
@@ -162,44 +182,61 @@ class LocalSore:
 
         Returns:
             entry: contents stored with the key
-        """
-        if not self.__check_key(key):
-            raise KeyError('Key Not Found')
-        try:
-            store = self.__get_store()
-            return store[key]
-        except Exception as e:
-            print(e)
 
-    def delete(self, key):
+        Exceptions:
+            TypeError: If the key is not string type
+            KeyError: If the key is not in the store
+        """
+        if not isinstance(key, str):
+            raise TypeError('Key is not a string')
+        key = self.__generate_store_key(key)
+        if not self.__is_valid_key(key):
+            raise KeyError('Key Not Found')
+        for line in fileinput.input(self.__store_file_path):
+            if key in line:
+                val = json.loads(line)
+                return val[key]
+
+    def delete(self, key: str) -> None:
         """Function to delete an entry based on a key
 
         Args:
             key (str): key of the entry to be deleted
 
         Raises:
-            KeyError: If key is not present
+            KeyError: If key is not present in the store
+            TypeError: If the key is not string type
         """
-        if not self.__check_key(key):
+        if not isinstance(key, str):
+            raise TypeError('Key is not a string')
+        record_key = self.__generate_store_key(key)
+        if not self.__is_valid_key(record_key):
             raise KeyError('Key Not Found')
-        try:
-            store = self.__get_store()
-            del store[key]
-            self.__update_store(store)
-            self.__update_keys(key, op='del')
-            print('Data Deleted Successfully')
+        self.__update_store(key=record_key, op='del')
+        self.__update_keys(record_key, op='del')
+        print('Record Deleted Successfully')
 
-        except Exception as e:
-            print(e)
-
-    def delete_store(self):
-        os.remove(self.store_file_path)
-        os.remove(self.store_keys_path)
-        if not os.path.samefile(pathlib.Path.cwd(), self.store_file_path.parent.absolute()):
-            os.removedirs(self.store_file_path.parent.absolute())
+    def delete_store(self) -> None:
+        """Function to delete the store
+        """
+        os.remove(self.__store_file_path)
+        os.remove(self.__store_keys_path)
+        if not os.path.samefile(pathlib.Path.cwd(), self.__store_file_path.parent.absolute()):
+            os.removedirs(self.__store_file_path.parent.absolute())
         print('Store Deleted Successfully')
+
+    def __check_file_size(self) -> bool:
+        """Function returns True if the store size is less than 1 GB else False"""
+        return True if os.stat(self.__store_file_path).st_size < 2 ** 30 else False
 
 
 if __name__ == "__main__":
-    store = LocalSore('abc/store.json')
-    print(store.file_path)
+    store = LocalSore()
+    store.write('kqy1', 'asdsadda1')
+    # store.write('key2', 'asdsadda2')
+    # store.write('key3', 'asdsadda3', ttl=1)
+    # print(store.read("key2"))
+    # print(store.read("key2"))
+    # store.delete('key2')
+    # store.delete_store()
+    store.print_store()
