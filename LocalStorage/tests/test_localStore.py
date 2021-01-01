@@ -2,6 +2,7 @@ import pytest
 import os
 import pathlib
 from LocalStorage.localStore import LocalSore
+import jsonlines
 
 
 def test_store_creation():
@@ -30,3 +31,14 @@ def test_store_creation_user_path():
     assert 'keys.json' in files, 'Keys file not created'
 
     store1.delete_store()
+
+
+def test_write_to_file():
+    store = LocalSore()
+    store.write("key1", 'adasdfadsf')
+
+    with jsonlines.open(store.file_path) as fp:
+        for line in fp.iter():
+            assert line == {'key1&^@#':{'data': 'adasdfadsf'}}, 'Record is not same'
+
+    store.delete_store()
