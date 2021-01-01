@@ -228,15 +228,3 @@ class LocalSore:
     def __check_file_size(self) -> bool:
         """Function returns True if the store size is less than 1 GB else False"""
         return True if os.stat(self.__store_file_path).st_size < 2 ** 30 else False
-
-
-if __name__ == "__main__":
-    store = LocalSore()
-    store.write('kqy1', 'asdsadda1')
-    # store.write('key2', 'asdsadda2')
-    # store.write('key3', 'asdsadda3', ttl=1)
-    # print(store.read("key2"))
-    # print(store.read("key2"))
-    # store.delete('key2')
-    # store.delete_store()
-    store.print_store()

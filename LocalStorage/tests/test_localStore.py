@@ -25,8 +25,8 @@ def test_store_creation():
 def test_store_creation_user_path():
     """Test to checking store is created at the user location
     """
-    store1 = LocalSore('store.json')
-    file_path = store1.file_path
+    store = LocalSore('store.json')
+    file_path = store.file_path
     file = file_path.name
     parent_path = file_path.parent
     files = os.listdir(parent_path)
@@ -35,7 +35,7 @@ def test_store_creation_user_path():
     assert file in files, 'Store Not Created'
     assert 'keys.json' in files, 'Keys file not created'
 
-    store1.delete_store()
+    store.delete_store()
 
 
 def test_write_to_store__key_error():
@@ -86,7 +86,8 @@ def test_write_to_store_multiple_records():
     with jsonlines.open(store.file_path) as fp:
         for line, test in zip(fp.iter(), entries):
             assert line == test, 'records not same'
-        store.delete_store()
+
+    store.delete_store()
 
 
 def test_read_from_file__type_error():
@@ -111,7 +112,7 @@ def test_read_from_file__key_error():
 def test_read_from_store():
     """Test for checking if the data is read properly
     """
-    store = LocalSore()
+    store = LocalSore('abc/store.ndjson')
     store.write('key1', 'asdasd')
     data = store.read('key1')
     assert data == {'data': 'asdasd'}, 'data is not same'
@@ -133,7 +134,7 @@ def test_delete_from_store__key_error():
     store = LocalSore()
     store.write('key1', 'asdfadsfadsf')
     with pytest.raises(KeyError) as exec_info:
-        store.delete('key2')
+        assert store.delete('key2')
     store.delete_store()
 
 
