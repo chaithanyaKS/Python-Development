@@ -192,10 +192,11 @@ class LocalSore:
         key = self.__generate_store_key(key)
         if not self.__is_valid_key(key):
             raise KeyError('Key Not Found')
-        for line in fileinput.input(self.__store_file_path):
-            if key in line:
-                val = json.loads(line)
-                return val[key]
+
+        with jsonlines.open(self.__store_file_path) as fp:
+            for line in fp.iter():
+                if key in line:
+                    return line[key]
 
     def delete(self, key: str) -> None:
         """Function to delete an entry based on a key
@@ -228,3 +229,9 @@ class LocalSore:
     def __check_file_size(self) -> bool:
         """Function returns True if the store size is less than 1 GB else False"""
         return True if os.stat(self.__store_file_path).st_size < 2 ** 30 else False
+
+
+if __name__ == "__main__":
+    store = LocalSore()
+    store.write('key1', 'adasd')
+    print(store.read('key1'))
